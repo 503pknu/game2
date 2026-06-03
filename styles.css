@@ -233,57 +233,40 @@ h1 {
 
 .diff-spot {
   position: absolute;
-  left: var(--spot-x);
-  top: var(--spot-y);
-  width: var(--spot-size);
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  opacity: var(--spot-opacity, 0.94);
   pointer-events: none;
-}
-
-.diff-spot.is-glow {
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.92), var(--spot-color) 30%, transparent 72%);
-  mix-blend-mode: hard-light;
-  opacity: 0.82;
-}
-
-.diff-spot.is-blur {
-  border-radius: 24%;
-  background: rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(8px) saturate(190%);
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.34);
-}
-
-.diff-spot.is-stripe {
-  aspect-ratio: 1.28;
-  border-radius: 7px;
-  background: repeating-linear-gradient(
-    135deg,
-    var(--spot-color) 0 8px,
-    rgba(255, 255, 255, 0.78) 8px 14px
+  -webkit-mask-image: radial-gradient(
+    ellipse var(--spot-rx) var(--spot-ry) at var(--spot-x) var(--spot-y),
+    #000 0 54%,
+    rgba(0, 0, 0, 0.78) 63%,
+    transparent 80%
   );
-  opacity: 0.72;
-  mix-blend-mode: screen;
+  mask-image: radial-gradient(
+    ellipse var(--spot-rx) var(--spot-ry) at var(--spot-x) var(--spot-y),
+    #000 0 54%,
+    rgba(0, 0, 0, 0.78) 63%,
+    transparent 80%
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
 }
 
-.diff-spot.is-badge {
-  border-radius: 50%;
-  background: var(--spot-color);
-  clip-path: polygon(50% 0, 62% 34%, 98% 35%, 69% 56%, 80% 91%, 50% 70%, 20% 91%, 31% 56%, 2% 35%, 38% 34%);
-  filter: drop-shadow(0 5px 10px rgba(31, 41, 51, 0.18));
-  opacity: 0.86;
-}
-
-.diff-spot.is-shadow {
-  border-radius: 6px;
-  background: rgba(31, 41, 51, 0.34);
-  mix-blend-mode: multiply;
-  transform: translate(-50%, -50%) rotate(-11deg);
+.diff-spot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--spot-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  filter: var(--spot-filter);
+  transform: translate(var(--shift-x), var(--shift-y)) scale(var(--spot-scale));
+  transform-origin: var(--spot-x) var(--spot-y);
 }
 
 .diff-spot.is-found {
-  opacity: 0.35;
+  opacity: 0.55;
 }
 
 .found-pin {

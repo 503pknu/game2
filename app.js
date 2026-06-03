@@ -7,8 +7,7 @@ const IMAGE_SEEDS = Array.from({ length: IMAGE_COUNT }, (_, index) => {
   return `game2-spot-${String(index + 1).padStart(3, "0")}`;
 });
 
-const VISUAL_TYPES = ["glow", "blur", "stripe", "badge", "shadow"];
-const SPOT_COLORS = ["#e85d4f", "#1aa6a6", "#f4ba35", "#6c63ff", "#2f80ed"];
+const VISUAL_TYPES = ["shift", "bright", "soft", "warm", "zoom"];
 
 const state = {
   imageIndex: 0,
@@ -53,16 +52,24 @@ function randomBetween(min, max) {
   return min + Math.random() * (max - min);
 }
 
-function shuffle(items) {
-  return [...items].sort(() => Math.random() - 0.5);
-}
-
 function formatDuration(durationMs) {
   const safeMs = Math.max(0, durationMs);
   const minutes = Math.floor(safeMs / 60000);
   const seconds = Math.floor((safeMs % 60000) / 1000);
   const tenths = Math.floor((safeMs % 1000) / 100);
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${tenths}`;
+}
+
+function getSpotFilter(type) {
+  const filters = {
+    shift: "contrast(1.04) saturate(1.04)",
+    bright: "brightness(1.18) saturate(0.96)",
+    soft: "blur(1.8px) brightness(1.08)",
+    warm: "sepia(0.18) saturate(1.18) brightness(1.04)",
+    zoom: "contrast(1.08) saturate(1.08)",
+  };
+
+  return filters[type] || filters.shift;
 }
 
 function readRecentHistory() {
@@ -91,20 +98,34 @@ function generateSpots() {
   const spots = [];
   let attempts = 0;
   const typeOffset = Math.floor(Math.random() * VISUAL_TYPES.length);
-  const colorOffset = Math.floor(Math.random() * SPOT_COLORS.length);
 
   while (spots.length < TOTAL_SPOTS && attempts < 500) {
     attempts += 1;
-    const size = randomBetween(7.4, 10.6);
+    const size = randomBetween(8.4, 12.6);
+    const type = VISUAL_TYPES[(spots.length + typeOffset) % VISUAL_TYPES.length];
     const candidate = {
       id: `spot-${spots.length + 1}`,
       x: randomBetween(12, 88),
       y: randomBetween(13, 84),
       size,
       hitRadius: size + 4.2,
-      type: VISUAL_TYPES[(spots.length + typeOffset) % VISUAL_TYPES.length],
-      color: SPOT_COLORS[(spots.length + colorOffset) % SPOT_COLORS.length],
+      type,
+      radiusX: size * randomBetween(0.5, 0.72),
+      radiusY: size * randomBetween(0.38, 0.58),
+      shiftX: randomBetween(-2.8, 2.8),
+      shiftY: randomBetween(-2.2, 2.2),
+      scale: type === "zoom" ? randomBetween(1.07, 1.13) : randomBetween(1.01, 1.05),
+      filter: getSpotFilter(type),
+      opacity: type === "soft" ? 0.84 : randomBetween(0.9, 0.98),
     };
+
+    if (Math.abs(candidate.shiftX) < 1.1) {
+      candidate.shiftX += candidate.shiftX < 0 ? -1.1 : 1.1;
+    }
+
+    if (Math.abs(candidate.shiftY) < 0.8) {
+      candidate.shiftY += candidate.shiftY < 0 ? -0.8 : 0.8;
+    }
 
     const overlaps = spots.some((spot) => {
       const dx = (candidate.x - spot.x) * 1.35;
@@ -187,6 +208,7 @@ function renderStats() {
 
 function renderDifferences() {
   els.differenceLayer.innerHTML = "";
+  const imageUrl = buildImageUrl(IMAGE_SEEDS[state.imageIndex]);
 
   state.spots.forEach((spot) => {
     const marker = document.createElement("span");
@@ -194,7 +216,14 @@ function renderDifferences() {
     marker.style.setProperty("--spot-x", `${spot.x}%`);
     marker.style.setProperty("--spot-y", `${spot.y}%`);
     marker.style.setProperty("--spot-size", `${spot.size}%`);
-    marker.style.setProperty("--spot-color", spot.color);
+    marker.style.setProperty("--spot-rx", `${spot.radiusX}%`);
+    marker.style.setProperty("--spot-ry", `${spot.radiusY}%`);
+    marker.style.setProperty("--spot-image", `url("${imageUrl}")`);
+    marker.style.setProperty("--spot-filter", spot.filter);
+    marker.style.setProperty("--spot-opacity", spot.opacity);
+    marker.style.setProperty("--shift-x", `${spot.shiftX}%`);
+    marker.style.setProperty("--shift-y", `${spot.shiftY}%`);
+    marker.style.setProperty("--spot-scale", spot.scale);
     els.differenceLayer.appendChild(marker);
   });
 }
