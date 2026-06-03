@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f3ea" />
+    <title>game2 | 틀린 그림 찾기</title>
+    <link rel="preconnect" href="https://picsum.photos" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="title-group">
+          <p class="eyebrow">game2</p>
+          <h1>틀린 그림 찾기</h1>
+        </div>
+
+        <section class="scorebar" aria-label="게임 상태">
+          <div class="metric">
+            <span>남은 틀린 곳</span>
+            <strong id="remainingCount">5</strong>
+          </div>
+          <div class="metric">
+            <span>찾은 곳</span>
+            <strong id="foundCount">0/5</strong>
+          </div>
+          <div class="metric">
+            <span>시간</span>
+            <strong id="timerText">00:00.0</strong>
+          </div>
+          <div class="metric">
+            <span>접속 중</span>
+            <strong id="onlineCount">-</strong>
+          </div>
+          <div class="spot-dots" id="spotDots" aria-label="진행률"></div>
+          <button class="primary-button" id="newGameButton" type="button">새 게임</button>
+        </section>
+      </header>
+
+      <section class="game-board is-loading" id="gameBoard" aria-label="틀린 그림 찾기 게임판">
+        <article class="image-panel" data-panel="left">
+          <div class="panel-head">
+            <span>원본</span>
+            <span id="imageNumberLeft">이미지 001</span>
+          </div>
+          <div class="image-shell">
+            <img id="leftImage" alt="원본 게임 이미지" decoding="async" />
+            <div class="marker-layer" id="leftMarkers" aria-hidden="true"></div>
+            <div class="miss-layer" aria-hidden="true"></div>
+          </div>
+        </article>
+
+        <article class="image-panel" data-panel="right">
+          <div class="panel-head">
+            <span>다른 그림</span>
+            <span id="imageNumberRight">이미지 001</span>
+          </div>
+          <div class="image-shell">
+            <img id="rightImage" alt="다른 게임 이미지" decoding="async" />
+            <div class="difference-layer" id="differenceLayer" aria-hidden="true"></div>
+            <div class="marker-layer" id="rightMarkers" aria-hidden="true"></div>
+            <div class="miss-layer" aria-hidden="true"></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="realtime-panel" aria-label="실시간 운영 정보">
+        <div class="realtime-status">
+          <span>실시간</span>
+          <strong id="firebaseStatus">Firebase 설정 대기 중</strong>
+        </div>
+        <div class="leaderboard">
+          <div class="leaderboard-head">
+            <span>랭킹</span>
+            <span>빠른 기록</span>
+          </div>
+          <ol id="leaderboardList" class="leaderboard-list">
+            <li>기록 대기 중</li>
+          </ol>
+        </div>
+      </section>
+
+      <footer class="status-row">
+        <p id="statusMessage" aria-live="polite">게임 준비 중</p>
+        <span id="sourceNote">이미지 100개 URL 세트</span>
+      </footer>
+    </main>
+
+    <script src="./firebase-config.js"></script>
+    <script src="./firebase-client.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

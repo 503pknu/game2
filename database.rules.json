@@ -1,0 +1,50 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "presence": {
+      ".read": true,
+      "$uid": {
+        "$connectionId": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['online', 'updatedAt']) && newData.child('online').val() === true && newData.child('updatedAt').isNumber() && newData.child('updatedAt').val() <= now + 10000",
+          "online": {
+            ".validate": "newData.val() === true"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "leaderboard": {
+      ".read": true,
+      ".indexOn": ["durationMs", "completedAt"],
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && newData.exists() && (!data.exists() || newData.child('durationMs').val() <= data.child('durationMs').val())",
+        ".validate": "newData.hasChildren(['nickname', 'durationMs', 'imageIndex', 'completedAt', 'updatedAt']) && newData.child('nickname').isString() && newData.child('nickname').val().length >= 4 && newData.child('nickname').val().length <= 12 && newData.child('durationMs').isNumber() && newData.child('durationMs').val() >= 1000 && newData.child('durationMs').val() <= 600000 && newData.child('imageIndex').isNumber() && newData.child('imageIndex').val() >= 0 && newData.child('imageIndex').val() < 100 && newData.child('completedAt').isNumber() && newData.child('completedAt').val() <= now + 10000 && newData.child('updatedAt').isNumber() && newData.child('updatedAt').val() <= now + 10000",
+        "nickname": {
+          ".validate": "newData.isString()"
+        },
+        "durationMs": {
+          ".validate": "newData.isNumber()"
+        },
+        "imageIndex": {
+          ".validate": "newData.isNumber()"
+        },
+        "completedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}
