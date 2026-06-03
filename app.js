@@ -1,7 +1,10 @@
 const TOTAL_SPOTS = 5;
+const MAX_MISSES = 10;
 const IMAGE_COUNT = 100;
+const NEXT_ROUND_DELAY_MS = 950;
 const RECENT_HISTORY_LIMIT = 14;
 const HISTORY_KEY = "game2-recent-images";
+const NAME_KEY = "game2-player-name";
 
 const IMAGE_SEEDS = Array.from({ length: IMAGE_COUNT }, (_, index) => {
   return `game2-spot-${String(index + 1).padStart(3, "0")}`;
@@ -14,15 +17,23 @@ const state = {
   spots: [],
   found: new Set(),
   isComplete: false,
+  isGameOver: false,
   loadToken: 0,
-  startedAt: 0,
+  sessionStartedAt: 0,
+  roundStartedAt: 0,
   timerId: 0,
+  transitionId: 0,
+  misses: 0,
+  roundMisses: 0,
+  completedRounds: 0,
+  totalScore: 0,
 };
 
 let realtimeBridge = {
   enabled: false,
-  recordCompletion() {},
+  recordScore() {},
 };
+let pendingScore = null;
 
 const els = {
   board: document.getElementById("gameBoard"),
@@ -33,6 +44,9 @@ const els = {
   rightMarkers: document.getElementById("rightMarkers"),
   remainingCount: document.getElementById("remainingCount"),
   foundCount: document.getElementById("foundCount"),
+  missChanceCount: document.getElementById("missChanceCount"),
+  roundCount: document.getElementById("roundCount"),
+  scoreText: document.getElementById("scoreText"),
   timerText: document.getElementById("timerText"),
   onlineCount: document.getElementById("onlineCount"),
   spotDots: document.getElementById("spotDots"),
@@ -40,6 +54,7 @@ const els = {
   statusMessage: document.getElementById("statusMessage"),
   firebaseStatus: document.getElementById("firebaseStatus"),
   leaderboardList: document.getElementById("leaderboardList"),
+  playerNameInput: document.getElementById("playerNameInput"),
   imageNumberLeft: document.getElementById("imageNumberLeft"),
   imageNumberRight: document.getElementById("imageNumberRight"),
 };
@@ -58,6 +73,29 @@ function formatDuration(durationMs) {
   const seconds = Math.floor((safeMs % 60000) / 1000);
   const tenths = Math.floor((safeMs % 1000) / 100);
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${tenths}`;
+}
+
+function formatScore(score) {
+  return Math.max(0, Math.round(score)).toLocaleString("ko-KR");
+}
+
+function sanitizeName(name) {
+  const cleanName = String(name || "")
+    .replace(/[<>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 12);
+  return cleanName || "Player";
+}
+
+function getPlayerName() {
+  return sanitizeName(els.playerNameInput.value);
+}
+
+function calculateRoundScore(durationMs, roundMisses) {
+  const speedScore = Math.max(500, 6000 - Math.floor(durationMs / 18));
+  const missPenalty = roundMisses * 150;
+  return Math.max(100, speedScore - missPenalty);
 }
 
 function getSpotFilter(type) {
@@ -149,12 +187,12 @@ function setFirebaseStatus(text) {
   els.firebaseStatus.textContent = text;
 }
 
-function startTimer() {
+function startSessionTimer() {
   window.clearInterval(state.timerId);
-  state.startedAt = performance.now();
+  state.sessionStartedAt = performance.now();
   els.timerText.textContent = "00:00.0";
   state.timerId = window.setInterval(() => {
-    els.timerText.textContent = formatDuration(performance.now() - state.startedAt);
+    els.timerText.textContent = formatDuration(performance.now() - state.sessionStartedAt);
   }, 100);
 }
 
@@ -203,6 +241,9 @@ function renderStats() {
   const remaining = TOTAL_SPOTS - state.found.size;
   els.remainingCount.textContent = String(remaining);
   els.foundCount.textContent = `${state.found.size}/${TOTAL_SPOTS}`;
+  els.missChanceCount.textContent = String(Math.max(0, MAX_MISSES - state.misses));
+  els.roundCount.textContent = String(state.completedRounds + 1);
+  els.scoreText.textContent = formatScore(state.totalScore);
   renderDots();
 }
 
@@ -261,17 +302,28 @@ function renderGame() {
   renderStats();
 }
 
-function startNewGame() {
+function startRound() {
   state.imageIndex = chooseImageIndex();
   state.spots = generateSpots();
   state.found = new Set();
   state.isComplete = false;
+  state.roundMisses = 0;
+  state.roundStartedAt = performance.now();
 
   saveRecentHistory(state.imageIndex);
-  startTimer();
   setMessage("새 사진 로딩 중");
   setImages(buildImageUrl(IMAGE_SEEDS[state.imageIndex]));
   renderGame();
+}
+
+function startNewGame() {
+  window.clearTimeout(state.transitionId);
+  state.isGameOver = false;
+  state.misses = 0;
+  state.completedRounds = 0;
+  state.totalScore = 0;
+  startSessionTimer();
+  startRound();
 }
 
 function getPointFromEvent(event, shell) {
@@ -304,7 +356,7 @@ function showMiss(shell, point) {
 }
 
 function handleShellClick(event) {
-  if (state.isComplete || els.board.classList.contains("is-loading")) {
+  if (state.isComplete || state.isGameOver || els.board.classList.contains("is-loading")) {
     return;
   }
 
@@ -313,8 +365,17 @@ function handleShellClick(event) {
   const hitSpot = findHitSpot(point);
 
   if (!hitSpot) {
+    state.misses += 1;
+    state.roundMisses += 1;
+    renderStats();
     showMiss(shell, point);
-    setMessage("다시 살펴보세요");
+
+    if (state.misses >= MAX_MISSES) {
+      endGame();
+      return;
+    }
+
+    setMessage(`다시 살펴보세요. 남은 기회 ${MAX_MISSES - state.misses}번`);
     return;
   }
 
@@ -324,20 +385,80 @@ function handleShellClick(event) {
   renderStats();
 
   if (state.found.size === TOTAL_SPOTS) {
-    state.isComplete = true;
-    const durationMs = Math.max(1000, Math.round(performance.now() - state.startedAt));
-    stopTimer(durationMs);
-    realtimeBridge.recordCompletion({
-      durationMs,
-      imageIndex: state.imageIndex,
-    }).catch((error) => {
-      setFirebaseStatus("기록 저장 실패");
-      console.error(error);
-    });
-    setMessage("5개를 모두 찾았습니다");
+    completeRound();
   } else {
     setMessage("찾았습니다");
   }
+}
+
+function completeRound() {
+  state.isComplete = true;
+  const roundDurationMs = Math.max(1000, Math.round(performance.now() - state.roundStartedAt));
+  const roundScore = calculateRoundScore(roundDurationMs, state.roundMisses);
+
+  state.totalScore += roundScore;
+  state.completedRounds += 1;
+  renderStats();
+  recordScore(false);
+  setMessage(`${state.completedRounds}라운드 완료 +${formatScore(roundScore)}점. 다음 게임으로 이동합니다`);
+
+  state.transitionId = window.setTimeout(() => {
+    if (!state.isGameOver) {
+      startRound();
+    }
+  }, NEXT_ROUND_DELAY_MS);
+}
+
+function endGame() {
+  state.isGameOver = true;
+  state.isComplete = true;
+  const totalDurationMs = Math.max(1000, Math.round(performance.now() - state.sessionStartedAt));
+  stopTimer(totalDurationMs);
+  renderStats();
+  recordScore(true);
+  setMessage(`게임 종료. 총점 ${formatScore(state.totalScore)}점`);
+}
+
+function recordScore(isFinal) {
+  if (state.totalScore <= 0) {
+    return;
+  }
+
+  const totalDurationMs = Math.max(1000, Math.round(performance.now() - state.sessionStartedAt));
+  const payload = {
+    nickname: getPlayerName(),
+    score: state.totalScore,
+    completedRounds: state.completedRounds,
+    misses: state.misses,
+    totalTimeMs: totalDurationMs,
+    isFinal,
+  };
+
+  submitScore(payload);
+}
+
+function submitScore(payload) {
+  if (!realtimeBridge.enabled) {
+    if (!pendingScore || payload.score >= pendingScore.score) {
+      pendingScore = payload;
+    }
+    return;
+  }
+
+  Promise.resolve(realtimeBridge.recordScore(payload)).catch((error) => {
+    setFirebaseStatus("기록 저장 실패");
+    console.error(error);
+  });
+}
+
+function flushPendingScore() {
+  if (!pendingScore || !realtimeBridge.enabled) {
+    return;
+  }
+
+  const payload = pendingScore;
+  pendingScore = null;
+  submitScore(payload);
 }
 
 function renderLeaderboard(rows, currentUid) {
@@ -345,6 +466,7 @@ function renderLeaderboard(rows, currentUid) {
 
   if (!rows.length) {
     const empty = document.createElement("li");
+    empty.className = "is-empty";
     empty.textContent = "기록 대기 중";
     els.leaderboardList.appendChild(empty);
     return;
@@ -362,11 +484,15 @@ function renderLeaderboard(rows, currentUid) {
     name.className = "rank-name";
     name.textContent = `${row.nickname}${suffix}`;
 
+    const score = document.createElement("span");
+    score.className = "rank-score";
+    score.textContent = formatScore(row.score);
+
     const time = document.createElement("span");
     time.className = "rank-time";
-    time.textContent = formatDuration(row.durationMs);
+    time.textContent = formatDuration(row.totalTimeMs);
 
-    item.append(rank, name, time);
+    item.append(rank, name, score, time);
     els.leaderboardList.appendChild(item);
   });
 }
@@ -384,6 +510,7 @@ async function initRealtime() {
         console.error(error);
       },
     });
+    flushPendingScore();
   } catch (error) {
     setFirebaseStatus("실시간 연결 실패");
     console.error(error);
@@ -391,6 +518,11 @@ async function initRealtime() {
 }
 
 function bindEvents() {
+  els.playerNameInput.value = sanitizeName(localStorage.getItem(NAME_KEY) || els.playerNameInput.value);
+  els.playerNameInput.addEventListener("input", () => {
+    localStorage.setItem(NAME_KEY, getPlayerName());
+  });
+
   document.querySelectorAll(".image-shell").forEach((shell) => {
     shell.tabIndex = 0;
     shell.addEventListener("click", handleShellClick);

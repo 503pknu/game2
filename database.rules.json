@@ -22,17 +22,23 @@
     },
     "leaderboard": {
       ".read": true,
-      ".indexOn": ["durationMs", "completedAt"],
+      ".indexOn": ["score", "updatedAt"],
       "$uid": {
-        ".write": "auth != null && auth.uid === $uid && newData.exists() && (!data.exists() || newData.child('durationMs').val() <= data.child('durationMs').val())",
-        ".validate": "newData.hasChildren(['nickname', 'durationMs', 'imageIndex', 'completedAt', 'updatedAt']) && newData.child('nickname').isString() && newData.child('nickname').val().length >= 4 && newData.child('nickname').val().length <= 12 && newData.child('durationMs').isNumber() && newData.child('durationMs').val() >= 1000 && newData.child('durationMs').val() <= 600000 && newData.child('imageIndex').isNumber() && newData.child('imageIndex').val() >= 0 && newData.child('imageIndex').val() < 100 && newData.child('completedAt').isNumber() && newData.child('completedAt').val() <= now + 10000 && newData.child('updatedAt').isNumber() && newData.child('updatedAt').val() <= now + 10000",
+        ".write": "auth != null && auth.uid === $uid && newData.exists() && (!data.exists() || newData.child('score').val() >= data.child('score').val())",
+        ".validate": "newData.hasChildren(['nickname', 'score', 'completedRounds', 'misses', 'totalTimeMs', 'completedAt', 'updatedAt']) && newData.child('nickname').isString() && newData.child('nickname').val().length >= 1 && newData.child('nickname').val().length <= 12 && newData.child('score').isNumber() && newData.child('score').val() >= 1 && newData.child('score').val() <= 10000000 && newData.child('completedRounds').isNumber() && newData.child('completedRounds').val() >= 1 && newData.child('completedRounds').val() <= 1000 && newData.child('misses').isNumber() && newData.child('misses').val() >= 0 && newData.child('misses').val() <= 10 && newData.child('totalTimeMs').isNumber() && newData.child('totalTimeMs').val() >= 1000 && newData.child('totalTimeMs').val() <= 86400000 && newData.child('completedAt').isNumber() && newData.child('completedAt').val() <= now + 10000 && newData.child('updatedAt').isNumber() && newData.child('updatedAt').val() <= now + 10000",
         "nickname": {
           ".validate": "newData.isString()"
         },
-        "durationMs": {
+        "score": {
           ".validate": "newData.isNumber()"
         },
-        "imageIndex": {
+        "completedRounds": {
+          ".validate": "newData.isNumber()"
+        },
+        "misses": {
+          ".validate": "newData.isNumber()"
+        },
+        "totalTimeMs": {
           ".validate": "newData.isNumber()"
         },
         "completedAt": {

@@ -27,7 +27,8 @@ firebase deploy --only hosting,database
 ## Data paths
 
 - `presence/{uid}/{connectionId}`: 현재 접속 세션입니다. 접속이 끊기면 `onDisconnect`로 제거됩니다.
-- `leaderboard/{uid}`: 익명 사용자의 최고 기록 1개입니다. 더 빠른 기록만 덮어쓸 수 있습니다.
+- `leaderboard/{uid}`: 익명 사용자의 최고 점수 1개입니다. 더 높은 점수만 덮어쓸 수 있습니다.
+- 기록창은 `score` 기준으로 최대 10순위까지 표시합니다.
 
 ## Notes
 

@@ -26,6 +26,18 @@
             <strong id="foundCount">0/5</strong>
           </div>
           <div class="metric">
+            <span>남은 기회</span>
+            <strong id="missChanceCount">10</strong>
+          </div>
+          <div class="metric">
+            <span>라운드</span>
+            <strong id="roundCount">1</strong>
+          </div>
+          <div class="metric">
+            <span>총점</span>
+            <strong id="scoreText">0</strong>
+          </div>
+          <div class="metric">
             <span>시간</span>
             <strong id="timerText">00:00.0</strong>
           </div>
@@ -66,17 +78,22 @@
       </section>
 
       <section class="realtime-panel" aria-label="실시간 운영 정보">
+        <label class="player-box" for="playerNameInput">
+          <span>이름</span>
+          <input id="playerNameInput" type="text" maxlength="12" autocomplete="nickname" value="Player" />
+        </label>
         <div class="realtime-status">
           <span>실시간</span>
           <strong id="firebaseStatus">Firebase 설정 대기 중</strong>
         </div>
         <div class="leaderboard">
           <div class="leaderboard-head">
-            <span>랭킹</span>
-            <span>빠른 기록</span>
+            <span>기록창</span>
+            <span>총점</span>
+            <span>시간</span>
           </div>
           <ol id="leaderboardList" class="leaderboard-list">
-            <li>기록 대기 중</li>
+            <li class="is-empty">기록 대기 중</li>
           </ol>
         </div>
       </section>

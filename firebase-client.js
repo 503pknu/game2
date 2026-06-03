@@ -21,13 +21,17 @@ function makeNickname(uid) {
 function snapshotToLeaderboard(snapshot) {
   const rows = [];
   snapshot.forEach((child) => {
-    rows.push({
+    const row = {
       uid: child.key,
       ...child.val(),
-    });
+    };
+
+    if (Number.isFinite(row.score)) {
+      rows.push(row);
+    }
   });
 
-  return rows.sort((a, b) => a.durationMs - b.durationMs).slice(0, 5);
+  return rows.sort((a, b) => b.score - a.score).slice(0, 10);
 }
 
 function countPresence(snapshot) {
@@ -48,7 +52,9 @@ async function createRealtimeBridge(handlers = {}) {
     handlers.onStatus?.("Firebase 설정 대기 중");
     return {
       enabled: false,
-      recordCompletion() {},
+      recordScore() {
+        return Promise.resolve();
+      },
     };
   }
 
@@ -67,7 +73,7 @@ async function createRealtimeBridge(handlers = {}) {
   const {
     get,
     getDatabase,
-    limitToFirst,
+    limitToLast,
     onDisconnect,
     onValue,
     orderByChild,
@@ -105,7 +111,7 @@ async function createRealtimeBridge(handlers = {}) {
   }
 
   function watchLeaderboard() {
-    const leaderboardQuery = query(ref(database, "leaderboard"), orderByChild("durationMs"), limitToFirst(5));
+    const leaderboardQuery = query(ref(database, "leaderboard"), orderByChild("score"), limitToLast(10));
     onValue(leaderboardQuery, (snapshot) => {
       handlers.onLeaderboard?.(snapshotToLeaderboard(snapshot), uid);
     });
@@ -138,21 +144,23 @@ async function createRealtimeBridge(handlers = {}) {
 
   return {
     enabled: true,
-    async recordCompletion({ durationMs, imageIndex }) {
+    async recordScore({ nickname, score, completedRounds, misses, totalTimeMs }) {
       await ready;
 
       const recordRef = ref(database, `leaderboard/${uid}`);
       const current = await get(recordRef);
       const previous = current.exists() ? current.val() : null;
 
-      if (previous && previous.durationMs <= durationMs) {
+      if (previous && previous.score >= score) {
         return;
       }
 
       await set(recordRef, {
-        nickname,
-        durationMs,
-        imageIndex,
+        nickname: nickname || makeNickname(uid),
+        score,
+        completedRounds,
+        misses,
+        totalTimeMs,
         completedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });

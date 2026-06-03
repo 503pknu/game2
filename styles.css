@@ -349,16 +349,46 @@ h1 {
 
 .realtime-panel {
   display: grid;
-  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  grid-template-columns: minmax(150px, 190px) minmax(180px, 240px) minmax(0, 1fr);
   gap: 12px;
   margin-top: 12px;
 }
 
+.player-box,
 .realtime-status,
 .leaderboard {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.82);
+}
+
+.player-box {
+  display: grid;
+  gap: 6px;
+  min-height: 62px;
+  padding: 9px 12px;
+}
+
+.player-box span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.player-box input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-bottom: 2px solid rgba(26, 166, 166, 0.32);
+  background: transparent;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 900;
+  outline: 0;
+}
+
+.player-box input:focus {
+  border-bottom-color: var(--teal);
 }
 
 .realtime-status {
@@ -371,7 +401,7 @@ h1 {
 }
 
 .realtime-status span,
-.leaderboard-head span:last-child {
+.leaderboard-head span:not(:first-child) {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 800;
@@ -390,7 +420,7 @@ h1 {
 .leaderboard-head,
 .leaderboard-list li {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 88px;
+  grid-template-columns: 38px minmax(0, 1fr) 86px 86px;
   align-items: center;
   gap: 10px;
 }
@@ -427,6 +457,11 @@ h1 {
   border-top: 0;
 }
 
+.leaderboard-list li.is-empty {
+  display: block;
+  padding-top: 10px;
+}
+
 .rank-index {
   color: var(--teal);
   font-weight: 900;
@@ -439,10 +474,16 @@ h1 {
   white-space: nowrap;
 }
 
+.rank-score,
 .rank-time {
   color: var(--coral);
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.rank-score {
+  color: var(--ink);
+  font-weight: 900;
 }
 
 @keyframes loadSweep {
