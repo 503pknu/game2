@@ -1,6 +1,9 @@
 const TOTAL_SPOTS = 5;
 const MAX_MISSES = 10;
 const IMAGE_COUNT = 100;
+const MAX_ROUNDS = 100;
+const MAX_LEVEL = 10;
+const ROUNDS_PER_LEVEL = 10;
 const NEXT_ROUND_DELAY_MS = 950;
 const RECENT_HISTORY_LIMIT = 14;
 const HISTORY_KEY = "game2-recent-images";
@@ -10,7 +13,7 @@ const IMAGE_SEEDS = Array.from({ length: IMAGE_COUNT }, (_, index) => {
   return `game2-spot-${String(index + 1).padStart(3, "0")}`;
 });
 
-const VISUAL_TYPES = ["shift", "bright", "soft", "warm", "zoom"];
+const VISUAL_TYPES = ["color", "missing", "replace", "shape", "bright", "zoom", "shift", "warm"];
 
 const state = {
   imageIndex: 0,
@@ -23,7 +26,7 @@ const state = {
   roundStartedAt: 0,
   timerId: 0,
   transitionId: 0,
-  misses: 0,
+  totalMisses: 0,
   roundMisses: 0,
   completedRounds: 0,
   totalScore: 0,
@@ -46,6 +49,7 @@ const els = {
   foundCount: document.getElementById("foundCount"),
   missChanceCount: document.getElementById("missChanceCount"),
   roundCount: document.getElementById("roundCount"),
+  levelText: document.getElementById("levelText"),
   scoreText: document.getElementById("scoreText"),
   timerText: document.getElementById("timerText"),
   onlineCount: document.getElementById("onlineCount"),
@@ -92,22 +96,65 @@ function getPlayerName() {
   return sanitizeName(els.playerNameInput.value);
 }
 
-function calculateRoundScore(durationMs, roundMisses) {
-  const speedScore = Math.max(500, 6000 - Math.floor(durationMs / 18));
-  const missPenalty = roundMisses * 150;
-  return Math.max(100, speedScore - missPenalty);
+function getCurrentRoundNumber() {
+  return Math.min(MAX_ROUNDS, state.completedRounds + 1);
 }
 
-function getSpotFilter(type) {
+function getLevelForRound(roundNumber = getCurrentRoundNumber()) {
+  return Math.min(MAX_LEVEL, Math.max(1, Math.ceil(roundNumber / ROUNDS_PER_LEVEL)));
+}
+
+function getDifficultyConfig(level) {
+  const progress = (level - 1) / (MAX_LEVEL - 1);
+  return {
+    sizeMin: 16 - progress * 6.5,
+    sizeMax: 21 - progress * 8,
+    hitBonus: 9 - progress * 4.5,
+    shiftMin: 6.5 - progress * 2.5,
+    shiftMax: 11 - progress * 4.5,
+    opacityMin: 0.98 - progress * 0.1,
+    opacityMax: 1,
+    gap: 10 - progress * 3,
+  };
+}
+
+function getVisualTypesForLevel(level) {
+  if (level <= 3) {
+    return ["color", "missing", "replace", "shape", "bright"];
+  }
+
+  if (level <= 7) {
+    return ["color", "missing", "replace", "shape", "bright", "zoom"];
+  }
+
+  return VISUAL_TYPES;
+}
+
+function calculateRoundScore(durationMs, roundMisses, level) {
+  const levelMultiplier = 1 + (level - 1) * 0.14;
+  const speedScore = Math.max(650, 7000 - Math.floor(durationMs / 18));
+  const missPenalty = roundMisses * (170 + level * 20);
+  return Math.max(150, Math.round((speedScore - missPenalty) * levelMultiplier));
+}
+
+function getSpotFilter(type, level) {
+  const progress = (level - 1) / (MAX_LEVEL - 1);
   const filters = {
-    shift: "contrast(1.04) saturate(1.04)",
-    bright: "brightness(1.18) saturate(0.96)",
-    soft: "blur(1.8px) brightness(1.08)",
-    warm: "sepia(0.18) saturate(1.18) brightness(1.04)",
-    zoom: "contrast(1.08) saturate(1.08)",
+    color: `hue-rotate(${Math.round(58 - progress * 28)}deg) saturate(${1.7 - progress * 0.32}) brightness(${1.08 - progress * 0.03})`,
+    missing: `blur(${2.4 - progress * 0.7}px) saturate(${0.34 + progress * 0.22}) brightness(${1.15 - progress * 0.07})`,
+    replace: `contrast(${1.28 - progress * 0.12}) saturate(${1.28 - progress * 0.12}) brightness(${1.08 - progress * 0.02})`,
+    shape: `contrast(${1.36 - progress * 0.14}) saturate(${1.35 - progress * 0.12}) brightness(${1.08 - progress * 0.03})`,
+    bright: `brightness(${1.33 - progress * 0.15}) contrast(${1.08 + progress * 0.04}) saturate(${1.08 - progress * 0.02})`,
+    zoom: `contrast(${1.18 - progress * 0.08}) saturate(${1.16 - progress * 0.08})`,
+    shift: `contrast(${1.13 - progress * 0.06}) saturate(${1.12 - progress * 0.05})`,
+    warm: `sepia(${0.26 - progress * 0.08}) saturate(${1.32 - progress * 0.16}) brightness(${1.08 - progress * 0.03})`,
   };
 
-  return filters[type] || filters.shift;
+  return filters[type] || filters.replace;
+}
+
+function randomSign() {
+  return Math.random() < 0.5 ? -1 : 1;
 }
 
 function readRecentHistory() {
@@ -135,40 +182,38 @@ function chooseImageIndex() {
 function generateSpots() {
   const spots = [];
   let attempts = 0;
-  const typeOffset = Math.floor(Math.random() * VISUAL_TYPES.length);
+  const level = getLevelForRound();
+  const difficulty = getDifficultyConfig(level);
+  const visualTypes = getVisualTypesForLevel(level);
+  const typeOffset = Math.floor(Math.random() * visualTypes.length);
 
   while (spots.length < TOTAL_SPOTS && attempts < 500) {
     attempts += 1;
-    const size = randomBetween(8.4, 12.6);
-    const type = VISUAL_TYPES[(spots.length + typeOffset) % VISUAL_TYPES.length];
+    const size = randomBetween(difficulty.sizeMin, difficulty.sizeMax);
+    const type = visualTypes[(spots.length + typeOffset) % visualTypes.length];
+    const baseShiftX = randomBetween(difficulty.shiftMin, difficulty.shiftMax) * randomSign();
+    const baseShiftY = randomBetween(difficulty.shiftMin * 0.72, difficulty.shiftMax * 0.82) * randomSign();
+    const shiftBoost = type === "replace" || type === "missing" ? 1.25 : 1;
     const candidate = {
       id: `spot-${spots.length + 1}`,
       x: randomBetween(12, 88),
       y: randomBetween(13, 84),
       size,
-      hitRadius: size + 4.2,
+      hitRadius: size + difficulty.hitBonus,
       type,
-      radiusX: size * randomBetween(0.5, 0.72),
-      radiusY: size * randomBetween(0.38, 0.58),
-      shiftX: randomBetween(-2.8, 2.8),
-      shiftY: randomBetween(-2.2, 2.2),
-      scale: type === "zoom" ? randomBetween(1.07, 1.13) : randomBetween(1.01, 1.05),
-      filter: getSpotFilter(type),
-      opacity: type === "soft" ? 0.84 : randomBetween(0.9, 0.98),
+      radiusX: size * randomBetween(0.62, 0.86),
+      radiusY: size * randomBetween(0.48, 0.7),
+      shiftX: baseShiftX * shiftBoost,
+      shiftY: baseShiftY * shiftBoost,
+      scale: type === "zoom" ? randomBetween(1.13, 1.22) : randomBetween(1.04, 1.12),
+      filter: getSpotFilter(type, level),
+      opacity: randomBetween(difficulty.opacityMin, difficulty.opacityMax),
     };
-
-    if (Math.abs(candidate.shiftX) < 1.1) {
-      candidate.shiftX += candidate.shiftX < 0 ? -1.1 : 1.1;
-    }
-
-    if (Math.abs(candidate.shiftY) < 0.8) {
-      candidate.shiftY += candidate.shiftY < 0 ? -0.8 : 0.8;
-    }
 
     const overlaps = spots.some((spot) => {
       const dx = (candidate.x - spot.x) * 1.35;
       const dy = candidate.y - spot.y;
-      return Math.hypot(dx, dy) < candidate.size + spot.size + 5;
+      return Math.hypot(dx, dy) < candidate.size + spot.size + difficulty.gap;
     });
 
     if (!overlaps) {
@@ -241,8 +286,9 @@ function renderStats() {
   const remaining = TOTAL_SPOTS - state.found.size;
   els.remainingCount.textContent = String(remaining);
   els.foundCount.textContent = `${state.found.size}/${TOTAL_SPOTS}`;
-  els.missChanceCount.textContent = String(Math.max(0, MAX_MISSES - state.misses));
-  els.roundCount.textContent = String(state.completedRounds + 1);
+  els.missChanceCount.textContent = String(Math.max(0, MAX_MISSES - state.roundMisses));
+  els.roundCount.textContent = `${getCurrentRoundNumber()}/${MAX_ROUNDS}`;
+  els.levelText.textContent = String(getLevelForRound());
   els.scoreText.textContent = formatScore(state.totalScore);
   renderDots();
 }
@@ -303,6 +349,11 @@ function renderGame() {
 }
 
 function startRound() {
+  if (state.completedRounds >= MAX_ROUNDS) {
+    endGame("100문제를 모두 맞췄습니다. 레벨 10 달성");
+    return;
+  }
+
   state.imageIndex = chooseImageIndex();
   state.spots = generateSpots();
   state.found = new Set();
@@ -319,7 +370,7 @@ function startRound() {
 function startNewGame() {
   window.clearTimeout(state.transitionId);
   state.isGameOver = false;
-  state.misses = 0;
+  state.totalMisses = 0;
   state.completedRounds = 0;
   state.totalScore = 0;
   startSessionTimer();
@@ -365,17 +416,17 @@ function handleShellClick(event) {
   const hitSpot = findHitSpot(point);
 
   if (!hitSpot) {
-    state.misses += 1;
     state.roundMisses += 1;
+    state.totalMisses += 1;
     renderStats();
     showMiss(shell, point);
 
-    if (state.misses >= MAX_MISSES) {
-      endGame();
+    if (state.roundMisses >= MAX_MISSES) {
+      endGame("이번 게임에서 10번 틀렸습니다");
       return;
     }
 
-    setMessage(`다시 살펴보세요. 남은 기회 ${MAX_MISSES - state.misses}번`);
+    setMessage(`다시 살펴보세요. 남은 기회 ${MAX_MISSES - state.roundMisses}번`);
     return;
   }
 
@@ -394,12 +445,19 @@ function handleShellClick(event) {
 function completeRound() {
   state.isComplete = true;
   const roundDurationMs = Math.max(1000, Math.round(performance.now() - state.roundStartedAt));
-  const roundScore = calculateRoundScore(roundDurationMs, state.roundMisses);
+  const level = getLevelForRound();
+  const roundScore = calculateRoundScore(roundDurationMs, state.roundMisses, level);
 
   state.totalScore += roundScore;
   state.completedRounds += 1;
   renderStats();
   recordScore(false);
+
+  if (state.completedRounds >= MAX_ROUNDS) {
+    endGame("100문제를 모두 맞췄습니다. 레벨 10 달성");
+    return;
+  }
+
   setMessage(`${state.completedRounds}라운드 완료 +${formatScore(roundScore)}점. 다음 게임으로 이동합니다`);
 
   state.transitionId = window.setTimeout(() => {
@@ -409,14 +467,14 @@ function completeRound() {
   }, NEXT_ROUND_DELAY_MS);
 }
 
-function endGame() {
+function endGame(reason = "게임 종료") {
   state.isGameOver = true;
   state.isComplete = true;
   const totalDurationMs = Math.max(1000, Math.round(performance.now() - state.sessionStartedAt));
   stopTimer(totalDurationMs);
   renderStats();
   recordScore(true);
-  setMessage(`게임 종료. 총점 ${formatScore(state.totalScore)}점`);
+  setMessage(`${reason}. 총점 ${formatScore(state.totalScore)}점`);
 }
 
 function recordScore(isFinal) {
@@ -429,7 +487,7 @@ function recordScore(isFinal) {
     nickname: getPlayerName(),
     score: state.totalScore,
     completedRounds: state.completedRounds,
-    misses: state.misses,
+    misses: state.totalMisses,
     totalTimeMs: totalDurationMs,
     isFinal,
   };

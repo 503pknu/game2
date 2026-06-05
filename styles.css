@@ -252,6 +252,25 @@ h1 {
   mask-repeat: no-repeat;
 }
 
+.diff-spot.is-shape {
+  -webkit-mask-image: radial-gradient(
+    ellipse var(--spot-rx) var(--spot-ry) at var(--spot-x) var(--spot-y),
+    #000 0 64%,
+    rgba(0, 0, 0, 0.74) 69%,
+    transparent 76%
+  );
+  mask-image: radial-gradient(
+    ellipse var(--spot-rx) var(--spot-ry) at var(--spot-x) var(--spot-y),
+    #000 0 64%,
+    rgba(0, 0, 0, 0.74) 69%,
+    transparent 76%
+  );
+}
+
+.diff-spot.is-missing {
+  opacity: 1;
+}
+
 .diff-spot::before {
   content: "";
   position: absolute;
@@ -263,6 +282,18 @@ h1 {
   filter: var(--spot-filter);
   transform: translate(var(--shift-x), var(--shift-y)) scale(var(--spot-scale));
   transform-origin: var(--spot-x) var(--spot-y);
+}
+
+.diff-spot.is-color::before {
+  mix-blend-mode: hue;
+}
+
+.diff-spot.is-missing::before {
+  mix-blend-mode: normal;
+}
+
+.diff-spot.is-bright::before {
+  mix-blend-mode: screen;
 }
 
 .diff-spot.is-found {
